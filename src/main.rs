@@ -11,7 +11,7 @@ async fn main() {
         get(|| async {
             match get_token().await {
                 Ok(response) => Html(response),
-                Err(e) => Html("Error".to_string()),
+                Err(e) => Html(e.to_string()),
             }
         }),
     );
