@@ -78,7 +78,7 @@ async fn auth_handler(State(state): State<AppState>) -> impl IntoResponse {
     let (client_id, redirect_uri) = (state.client_id, state.redirect_uri);
     let uri = format!(
         "https://accounts.google.com/o/oauth2/v2/auth?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=https://www.googleapis.com/auth/gmail.addons.current.message.readonly&access_type=offline&prompt=consent"
-    );
+    ); // lack of prompt=consent parameter made my life more difficult
     return Redirect::to(&uri).into_response();
 }
 
@@ -103,6 +103,7 @@ async fn auth_callback_handler(params: Query<Params>, state: State<AppState>) ->
 
     let data: ResponseData = serde_json::from_str(&response).unwrap();
 
+    //TODO: add beter error handling
     *state.access_token.lock().unwrap() = Some(data.access_token.clone());
     *state.expires_in.lock().unwrap() = Some(data.expires_in.clone());
     *state.refresh_token.lock().unwrap() = Some(data.refresh_token.clone());
