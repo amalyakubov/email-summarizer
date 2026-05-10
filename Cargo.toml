@@ -9,4 +9,5 @@ axum = "0.8.9"
 chrono = "0.4.44"
 dotenv = "0.15.0"
 reqwest = "0.13.3"
+serde = { version =  "1.0.228", features = ["derive"]}
 tokio = { version = "1.52.2", features = ["full"] }
