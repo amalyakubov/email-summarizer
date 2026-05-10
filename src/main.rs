@@ -2,6 +2,7 @@ use axum::Router;
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Redirect};
 use axum::routing::get;
+use reqwest::StatusCode;
 use serde::Deserialize;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -55,7 +56,7 @@ async fn index_handler(State(state): State<AppState>) -> impl IntoResponse {
         return Redirect::to("/auth").into_response();
     }
 
-    return "HEY".to_string().into_response();
+    return StatusCode::OK.into_response();
 }
 
 async fn auth_handler(State(state): State<AppState>) -> impl IntoResponse {
