@@ -2,6 +2,8 @@ use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Redirect};
 use axum::routing::get;
 use axum::{Json, Router};
+use chrono::Local;
+use chrono::TimeDelta;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -57,6 +59,7 @@ async fn main() {
         .route("/", get(index_handler))
         .route("/auth", get(auth_handler))
         .route("/auth/callback", get(auth_callback_handler))
+        .route("/emails", get(get_list_of_user_emails))
         .with_state(shared_state);
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
         .await
@@ -78,7 +81,7 @@ async fn index_handler(State(state): State<AppState>) -> impl IntoResponse {
 async fn auth_handler(State(state): State<AppState>) -> impl IntoResponse {
     let (client_id, redirect_uri) = (state.client_id, state.redirect_uri);
     let uri = format!(
-        "https://accounts.google.com/o/oauth2/v2/auth?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=https://www.googleapis.com/auth/gmail.addons.current.message.readonly&access_type=offline&prompt=consent"
+        "https://accounts.google.com/o/oauth2/v2/auth?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope=https://www.googleapis.com/auth/gmail.readonly&access_type=offline&prompt=consent"
     ); // lack of prompt=consent parameter made my life more difficult
     return Redirect::to(&uri).into_response();
 }
@@ -134,4 +137,40 @@ async fn auth_callback_handler(params: Query<Params>, state: State<AppState>) ->
     return Json(json!(data)).into_response();
 }
 
-async fn get_list_of_emails(user_id: String) {}
+#[derive(Serialize, Deserialize)]
+struct MessageStruct {
+    id: String,
+    #[serde(rename(serialize = "threadId", deserialize = "threadId"))]
+    thread_id: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct EmailsListResponse {
+    messages: Vec<MessageStruct>,
+    #[serde(rename(serialize = "resultSizeEstimate", deserialize = "resultSizeEstimate"))]
+    result_size_estimate: i32,
+}
+
+async fn get_list_of_user_emails(state: State<AppState>) -> impl IntoResponse {
+    let current_time = Local::now().date_naive();
+    let yesterday = current_time - TimeDelta::days(1);
+    let uri = format!(
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages?max_results=500&q=after:{}",
+        yesterday
+    );
+    println!("{}", yesterday);
+    let client = reqwest::Client::new();
+
+    let access_token = state.access_token.lock().unwrap().clone().unwrap();
+
+    let response = client
+        .get(uri)
+        .bearer_auth(access_token)
+        .send()
+        .await
+        .unwrap();
+
+    let emails_list_response = response.json::<EmailsListResponse>().await.unwrap();
+
+    return Json(emails_list_response);
+}
