@@ -21,7 +21,8 @@ struct AppState {
 
 #[derive(Debug, Deserialize)]
 struct Params {
-    code: String,
+    code: Option<String>,
+    error: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -85,7 +86,15 @@ async fn auth_handler(State(state): State<AppState>) -> impl IntoResponse {
 async fn auth_callback_handler(params: Query<Params>, state: State<AppState>) -> impl IntoResponse {
     let (client_id, redirect_uri, client_secret) =
         (&state.client_id, &state.redirect_uri, &state.client_secret);
-    let access_token = params.0.code;
+
+    match params.0.error {
+        Some(error) => {
+            return  "Error authorizing the user. Authorization code not received from the OAuth ApiAPI"
+                    .into_response()
+        },
+        None => (),
+    }
+    let access_token = params.0.code.unwrap();
 
     let client = reqwest::Client::new();
 
@@ -96,9 +105,15 @@ async fn auth_callback_handler(params: Query<Params>, state: State<AppState>) ->
     let response = match client.post(&uri).send().await {
         Ok(response) => match response.text().await {
             Ok(response) => response,
-            Err(e) => return e.to_string().into_response(),
+            Err(e) => return "Failed to convert oauth2 response into text".into_response(),
         },
-        Err(e) => return e.to_string().into_response(),
+        Err(e) => {
+            return format!(
+                "Failed to get the response code from oauth2 authorizatoin service, error: {}",
+                e
+            )
+            .into_response();
+        }
     };
 
     let data: ResponseData = serde_json::from_str(&response).unwrap();
@@ -108,6 +123,13 @@ async fn auth_callback_handler(params: Query<Params>, state: State<AppState>) ->
     *state.expires_in.lock().unwrap() = Some(data.expires_in.clone());
     *state.refresh_token.lock().unwrap() = Some(data.refresh_token.clone());
     *state.refresh_token_expires_in.lock().unwrap() = Some(data.refresh_token_expires_in.clone());
+
+    let access_token = state.access_token.lock().unwrap().clone().unwrap();
+    println!("Access token: {access_token}");
+    let refresh_token = state.refresh_token.lock().unwrap().clone().unwrap();
+    println!("Refresh token: {refresh_token}");
+    let expires_in = state.expires_in.lock().unwrap().clone().unwrap();
+    println!("Expires inn: {expires_in}");
 
     return Json(json!(data)).into_response();
 }
