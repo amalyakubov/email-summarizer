@@ -42,7 +42,7 @@ struct Params {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct ResponseData {
+struct AuthResponse {
     access_token: String,
     expires_in: i32,
     refresh_token: String,
@@ -83,6 +83,39 @@ async fn index_handler(State(state): State<AppState>) -> impl IntoResponse {
     }
 
     return StatusCode::OK.into_response();
+}
+
+#[derive(Deserialize)]
+struct TokenRefreshResponse {
+    access_token: String,
+    expires_in: i32,
+    scope: String,
+    token_type: String,
+}
+
+async fn refresh_access_token(
+    client_id: &String,
+    client_secret: &String,
+    refresh_token: &String,
+) -> (String, i32) {
+    let client = reqwest::Client::new();
+    let url = format!(
+        "https://oauth2.googleapis.com/token?client_id={client_id}&refresh_token={refresh_token}&grant_type=refresh_token"
+    );
+
+    let token_refresh_response_object = client
+        .post(url)
+        .send()
+        .await
+        .unwrap()
+        .json::<TokenRefreshResponse>()
+        .await
+        .unwrap();
+
+    return (
+        token_refresh_response_object.access_token,
+        token_refresh_response_object.expires_in,
+    );
 }
 
 async fn auth_handler(State(state): State<AppState>) -> impl IntoResponse {
@@ -126,7 +159,7 @@ async fn auth_callback_handler(params: Query<Params>, state: State<AppState>) ->
         }
     };
 
-    let data: ResponseData = serde_json::from_str(&response).unwrap();
+    let data: AuthResponse = serde_json::from_str(&response).unwrap();
 
     //TODO: add beter error handling
     *state.access_token.lock().unwrap() = Some(data.access_token.clone());
