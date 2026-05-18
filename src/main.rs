@@ -2,8 +2,8 @@ use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Redirect};
 use axum::routing::get;
 use axum::{Json, Router};
-use chrono::Local;
 use chrono::TimeDelta;
+use chrono::{Local, NaiveDate};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -191,14 +191,15 @@ struct EmailsListResponse {
     result_size_estimate: i32,
 }
 
+fn get_yesterday() -> NaiveDate {
+    return Local::now().date_naive() - TimeDelta::days(1);
+}
+
 async fn get_list_of_user_emails(state: State<AppState>) -> impl IntoResponse {
-    let current_time = Local::now().date_naive();
-    let yesterday = current_time - TimeDelta::days(1);
     let uri = format!(
         "https://gmail.googleapis.com/gmail/v1/users/me/messages?max_results=500&q=after:{}",
-        yesterday
+        get_yesterday()
     );
-    println!("{}", yesterday);
     let client = reqwest::Client::new();
 
     let access_token = state.access_token.lock().unwrap().clone().unwrap();
