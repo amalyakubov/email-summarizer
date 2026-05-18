@@ -21,6 +21,20 @@ struct AppState {
     client_secret: String,
 }
 
+impl AppState {
+    fn new(client_id: String, redirect_uri: String, client_secret: String) -> Self {
+        AppState {
+            refresh_token: Arc::new(Mutex::new(None)),
+            access_token: Arc::new(Mutex::new(None)),
+            expires_in: Arc::new(Mutex::new(None)),
+            refresh_token_expires_in: Arc::new(Mutex::new(None)),
+            client_id: client_id,
+            redirect_uri: redirect_uri,
+            client_secret: client_secret,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct Params {
     code: Option<String>,
@@ -46,15 +60,8 @@ async fn main() {
     let client_secret =
         dotenv::var("CLIENT_SECRET").expect("Unable to get client secret env variable");
 
-    let shared_state = AppState {
-        client_id: client_id,
-        redirect_uri: redirect_uri,
-        refresh_token: Arc::new(Mutex::new(None)),
-        access_token: Arc::new(Mutex::new(None)),
-        expires_in: Arc::new(Mutex::new(None)),
-        refresh_token_expires_in: Arc::new(Mutex::new(None)),
-        client_secret: client_secret,
-    };
+    let shared_state = AppState::new(client_id, redirect_uri, client_secret);
+
     let app = Router::new()
         .route("/", get(index_handler))
         .route("/auth", get(auth_handler))
@@ -91,7 +98,7 @@ async fn auth_callback_handler(params: Query<Params>, state: State<AppState>) ->
         (&state.client_id, &state.redirect_uri, &state.client_secret);
 
     match params.0.error {
-        Some(error) => {
+        Some(_e) => {
             return  "Error authorizing the user. Authorization code not received from the OAuth ApiAPI"
                     .into_response()
         },
@@ -108,7 +115,7 @@ async fn auth_callback_handler(params: Query<Params>, state: State<AppState>) ->
     let response = match client.post(&uri).send().await {
         Ok(response) => match response.text().await {
             Ok(response) => response,
-            Err(e) => return "Failed to convert oauth2 response into text".into_response(),
+            Err(_e) => return "Failed to convert oauth2 response into text".into_response(),
         },
         Err(e) => {
             return format!(
